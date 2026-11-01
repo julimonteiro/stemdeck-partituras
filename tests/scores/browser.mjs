@@ -50,7 +50,7 @@ try {
   assert.equal(await page.locator('.sd-score-panel').count(),0);
   await page.evaluate(async()=>{const {setPlayheadTime}=await import('/js/transport.js');setPlayheadTime(.5);});
   await page.waitForFunction(()=>document.querySelector('.sd-timeline-note.sd-playing'));
-  await page.waitForFunction(()=>Math.abs(Number(document.querySelector('.sd-timeline-cursor')?.getAttribute('x1'))-document.querySelector('.waves-column').clientWidth/12)<1);
+  await page.waitForFunction(()=>Math.abs(document.querySelector('.sd-timeline-cursor')?.x1.baseVal.value-document.querySelector('.waves-column').clientWidth/12)<1);
   const before=await page.locator('.sd-timeline-cursor').getAttribute('x1');
   await page.evaluate(async()=>{const {setPlayheadTime}=await import('/js/transport.js');setPlayheadTime(2);});
   await page.waitForFunction(before=>document.querySelector('.sd-timeline-cursor')?.getAttribute('x1')!==before,before);
@@ -93,6 +93,18 @@ try {
   const width=await page.locator('.waves-column').evaluate(e=>e.clientWidth);
   await page.locator('.lane-header[data-stem="bass"]').getByRole('button',{name:'Afastar notas',exact:true}).click();
   await page.waitForFunction(width=>document.querySelector('.waves-column').clientWidth>width,width);
+  await page.evaluate(async()=>{const {setPlayheadTime}=await import('/js/transport.js');setPlayheadTime(1);document.getElementById('wave-scroll').scrollLeft=200;});
+  await page.waitForTimeout(100);
+  const alignment=await page.evaluate(()=>{const r=document.querySelector('#ruler-time .playhead-marker').getBoundingClientRect();const y=document.querySelector('.sd-timeline-cursor').getBoundingClientRect();const ruler=document.querySelector('#ruler-time').getBoundingClientRect();const col=document.querySelector('.waves-column').getBoundingClientRect();return {red:r.left+r.width/2,yellow:y.left,rulerWidth:ruler.width,columnWidth:col.width,rulerLeft:ruler.left,columnLeft:col.left,svg:document.querySelector('.sd-timeline-overlay svg').getAttribute('viewBox'),cursor:document.querySelector('.sd-timeline-cursor').getAttribute('x1'),overlay:document.querySelector('.sd-timeline-overlay').getBoundingClientRect().width,svgWidth:document.querySelector('.sd-timeline-overlay svg').getBoundingClientRect().width};});
+  console.log('cursor alignment',alignment);
+  assert(Math.abs(alignment.red-alignment.yellow)<2,'Audio and notation cursors must coincide with zoom and scroll');
+  for(const zoom of [12,32,96]){
+    await page.evaluate(async zoom=>{const t=await import('/js/transport.js');t.setWaveZoomLevel(zoom);t.setPlayheadTime(1.5);document.getElementById('wave-scroll').scrollLeft=300;},zoom);
+    await page.waitForTimeout(100);
+    const offset=await page.evaluate(()=>{const r=document.querySelector('#ruler-time .playhead-marker').getBoundingClientRect();return Math.abs(r.left+r.width/2-document.querySelector('.sd-timeline-cursor').getBoundingClientRect().left);});
+    assert(offset<2,`Cursor alignment at ${zoom}x: ${offset}px`);
+  }
+  console.log('PASS: shared playhead alignment at 12x, 32x and 96x with horizontal scroll');
   await page.evaluate(async()=>{const state=await import('/js/state.js');state.setTotalDuration(6);const {clearTimeline}=await import('/js/scoreTimeline.js');clearTimeline('bass');});
   console.log('PASS: dense 3-minute score spacing, zoom beyond 10x, manual spacing control');
   console.log('PASS: mixer button, real transcription, SVG, 3 exports, measure seek, desktop save bridge, Space close, no JS errors');

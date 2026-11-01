@@ -59,3 +59,6 @@ Controles de visualização agrupados no rodapé das faixas, timeline escura com
 A timeline calcula o zoom a partir dos ataques das notas, buscando cerca de 40 pixels entre ataques consecutivos. No modo de notação, a ampliação pode ultrapassar o limite de 10× das ondas (até 256×). Os botões − / + ao lado da visualização permitem aproximar ou afastar as notas. Ao sair da notação, o zoom anterior é restaurado. A página no inspetor também fica ampliada e permite rolagem horizontal.
 
 O metrônomo existente pode ser ligado/desligado com K, ou no botão de metrônomo da seção Click track na barra inferior; o alto-falante ao lado ajusta o volume.
+
+
+O cursor da notação compartilha a atualização e a posição percentual do cursor do áudio. A escala SVG preserva o alinhamento horizontal em qualquer ampliação; não existe compensação manual entre os cursores. Regressão verificada com rolagem horizontal em 12×, 32× e 96×.

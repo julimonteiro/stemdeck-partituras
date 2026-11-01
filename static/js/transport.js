@@ -168,6 +168,12 @@ export function updatePlayheadMarker(currentSec) {
     // styles are interpreted in unzoomed layout pixels.
     const pct = Math.max(0, Math.min(100, (currentSec / totalDuration) * 100));
     m.style.left = `${pct}%`;
+    // Notation uses this same transport frame and percentage, including seeks,
+    // loops and speed changes; its SVG must not maintain a separate cursor clock.
+    for (const cursor of document.querySelectorAll('.sd-timeline-cursor')) {
+      cursor.setAttribute('x1', `${pct}%`);
+      cursor.setAttribute('x2', `${pct}%`);
+    }
   }
 }
 

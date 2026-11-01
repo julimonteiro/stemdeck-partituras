@@ -36,7 +36,7 @@ export async function showTimeline(jobId, stem, result) {
 
 function draw(entry, width, height) {
   const {result,mode}=entry;
-  const svg=node('svg',{viewBox:`0 0 ${width} ${height}`,width:'100%',height:'100%',role:'group','aria-label':mode==='tab'?'Tablatura na timeline':'Partitura na timeline'},entry.overlay);
+  const svg=node('svg',{viewBox:`0 0 ${width} ${height}`,width:'100%',height:'100%',preserveAspectRatio:'none',role:'group','aria-label':mode==='tab'?'Tablatura na timeline':'Partitura na timeline'},entry.overlay);
   const duration=totalDuration || result.duration;
   const px=time=>Math.max(0,Math.min(width,time/duration*width));
   const line=(x1,y1,x2,y2,color='#38444e',lineWidth=.7)=>node('line',{x1,y1,x2,y2,stroke:color,'stroke-width':lineWidth},svg);
@@ -97,7 +97,8 @@ function draw(entry, width, height) {
     group.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' ')seek(e);});
     entry.groups.push({element:group,event});
   });
-  entry.cursor=node('line',{x1:0,y1:0,x2:0,y2:height,stroke:'#f0b62e','stroke-width':2,'class':'sd-timeline-cursor'},svg);
+  const initial=`${((audioEngine||multitrack)?.getCurrentTime?.()||0)/duration*100}%`;
+  entry.cursor=node('line',{x1:initial,y1:0,x2:initial,y2:height,stroke:'#e54e4e','stroke-width':2,'class':'sd-timeline-cursor'},svg);
 }
 
 function update() {
@@ -119,8 +120,7 @@ function update() {
     if(width!==entry.width||Math.abs(height-entry.height)>.5){entry.width=width;entry.height=height;entry.overlay.replaceChildren();draw(entry,width,height);}
     for(const {element,event} of entry.groups) element.classList.toggle('sd-playing',time>=event.start&&time<event.end);
     for(const m of entry.measureRects) m.rect.setAttribute('fill',time>=m.start&&time<m.end?'#f3b83009':'transparent');
-    const x=time/(totalDuration||entry.result.duration)*width;
-    entry.cursor?.setAttribute('x1',x);entry.cursor?.setAttribute('x2',x);
+    // The transport updates both cursors together. Do not introduce a second clock here.
   }
   if(active.size&&engine?.isPlaying?.()&&waveScroll){
     const x=time/(totalDuration||1)*waveScroll.scrollWidth;
