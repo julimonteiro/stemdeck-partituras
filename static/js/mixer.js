@@ -1,3 +1,4 @@
+import { makeScoreButton } from "./scores.js";
 import {
   STEM_NAMES, TRACK_NAMES, EXTRA_STEM_NAMES, STEM_COLORS, STEM_DISPLAY, LANE_VOLUME_MAX,
 } from "./constants.js";
@@ -586,6 +587,11 @@ export function renderMixerRow(stem) {
   const nameVuCol = document.createElement("div");
   nameVuCol.className = "lane-name-vu";
   nameVuCol.append(nameEl, vu);
+  const scoreButton = makeScoreButton(stem.name);
+  if (scoreButton) {
+    scoreButton.style.cssText = "display:block;border:0;background:transparent;color:#e0b76b;font-size:10px;padding:1px 0;cursor:pointer;line-height:12px";
+    nameVuCol.append(scoreButton);
+  }
 
   row.append(iconCell, nameVuCol, fader, val, key, muteBtn, soloBtn, dl);
 

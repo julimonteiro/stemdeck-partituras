@@ -12,7 +12,10 @@ from app.api.queue import router as queue_router
 from app.api.search import router as search_router
 from app.api.stems import router as stems_router
 
+from app.api.scores import router as scores_router
+
 router = APIRouter()
+router.include_router(scores_router, tags=["scores"])
 router.include_router(config_router, tags=["config"])
 router.include_router(jobs_router, prefix="/jobs", tags=["jobs"])
 router.include_router(events_router, tags=["events"])
