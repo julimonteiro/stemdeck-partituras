@@ -27,7 +27,7 @@ O aplicativo original continua documentado no README.md. A extensão usa music21
 4. Para baixo, escolha **Partitura tradicional** ou **Tablatura (TAB)**, confira BPM/compasso/início e clique em **Gerar partitura**.
 5. Exporte PDF, MusicXML (MuseScore) ou MIDI. Clique nos números dos compassos para posicionar o áudio.
 
-TAB oferece 4 cordas (E1–A1–D2–G2) ou 5 cordas (B0–E1–A1–D2–G2), com 24 trastes; indica cordas/trastes também no MusicXML. A digitação escolhida é automática, não uma reconstrução da mão do músico. Notas fora desse alcance geram mensagem para usar partitura tradicional. A bateria estima somente bumbo, caixa e chimbal. PDF preserva a notação com imagem de alta resolução; MusicXML continua editável.
+TAB oferece 4 cordas (E1–A1–D2–G2) ou 5 cordas (B0–E1–A1–D2–G2), com 24 trastes; indica cordas/trastes também no MusicXML. A digitação escolhida é automática, não uma reconstrução da mão do músico. Notas fora desse alcance geram mensagem para usar partitura tradicional. No modo avançado, a bateria reconhece cinco famílias: bumbo, caixa, tons, chimbal e pratos. O modo clássico estima bumbo, caixa e chimbal. PDF preserva a notação com imagem de alta resolução; MusicXML continua editável.
 
 O instalador faz backup dos arquivos substituídos em `~/Library/Application Support/StemDeck/extension-backups/`. Para desfazer, feche o app e rode `python3 scripts/restore-partituras-macos.py CAMINHO_DO_BACKUP`. A biblioteca e os arquivos de áudio são preservados. Atualizações oficiais podem exigir reinstalar a extensão.
 
@@ -67,3 +67,8 @@ O cursor da notação compartilha a atualização e a posição percentual do cu
 ## Tela cheia
 
 No painel Partitura, o botão Tela cheia expande a visualização para toda a janela do aplicativo. Pauta e TAB mantêm o destaque do compasso durante a reprodução, com botões Reproduzir/Pausar no cabeçalho. Esc ou Sair da tela cheia retorna ao inspetor sem perder a transcrição.
+
+
+## Transcrição avançada local
+
+Instale com `python3 scripts/install-partituras-macos.py --neural`. No painel Partitura, escolha **Avançada · modelos locais** em **Precisão da transcrição** e gere novamente. Baixo usa Basic Pitch com conferência de afinação; bateria usa ADTOF. Áudio permanece no computador. O modelo de bateria tem restrição a uso não comercial. Consulte [modelos, licenças e limitações](docs/notation-models.md). A transcrição continua sendo um rascunho para revisar.

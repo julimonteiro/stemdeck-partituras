@@ -88,7 +88,7 @@ function openScore(jobId, stem, trigger, requestedNotation=null, autoTimeline=fa
   close.type = 'button';
   element('p', stem === 'bass'
     ? 'Transforme a faixa de baixo em uma partitura ou tablatura para acompanhar e estudar.'
-    : 'Notação experimental de bumbo, caixa e chimbal. Revise a transcrição antes de usar.', panel);
+    : 'Reconhecimento de bumbo, caixa, tons, chimbal e pratos. Revise a transcrição antes de usar.', panel);
   const form = element('form', null, panel);
   function input(label, value, min, max, step) {
     const wrapper = element('label', label, form);
@@ -114,6 +114,11 @@ function openScore(jobId, stem, trigger, requestedNotation=null, autoTimeline=fa
   strings.addEventListener('change',()=>{bassStrings=Number(strings.value);});
   if(stem!=='bass')stringsLabel.hidden=true;
   if (stem !== 'bass') formatLabel.hidden = true;
+  const engineLabel=element('label','Precisão da transcrição',form);engineLabel.className='sd-score-engine-label';
+  const engine=element('select',null,engineLabel);engine.setAttribute('aria-label','Precisão da transcrição');
+  element('option','Avançada · modelos locais',engine).value='neural';
+  element('option','Clássica · estimativa simples',engine).value='classic';
+  if(stem==='drums')element('small','Modelo ADTOF: uso não comercial.',engineLabel);
   const advanced=element('details',null,form);advanced.className='sd-score-advanced';
   element('summary','Ajustes de transcrição',advanced);
   const advancedGrid=element('div',null,advanced);advancedGrid.className='sd-score-advanced-grid';
@@ -277,7 +282,7 @@ function openScore(jobId, stem, trigger, requestedNotation=null, autoTimeline=fa
     const base = `/api/jobs/${encodeURIComponent(jobId)}/scores/${stem}`;
     try {
       const value = await request(base, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ strings:Number(strings.value), notation: notation.value, bpm: Number(bpm.value), beats: Number(beats.value), offset: Number(offset.value) }) });
+        body: JSON.stringify({ engine:engine.value, strings:Number(strings.value), notation: notation.value, bpm: Number(bpm.value), beats: Number(beats.value), offset: Number(offset.value) }) });
       await follow(value, `${base}/${value.token}`, sequence);
     } catch (error) { fail(error, sequence); }
   });

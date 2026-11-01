@@ -12,6 +12,7 @@ try {
   await openStudio(page); console.log("studio ready");
   const button = page.locator('.lane-header[data-stem="bass"] .sd-score-button');
   await button.click(); console.log("panel open");
+  await page.getByLabel('Precisão da transcrição',{exact:true}).selectOption('classic');
   await page.locator('.sd-score-advanced summary').click();
   await page.getByLabel('Andamento (BPM)').fill('120');
   await page.getByRole('button',{name:'Gerar partitura',exact:true}).click();

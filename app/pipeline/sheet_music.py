@@ -9,7 +9,7 @@ import xml.etree.ElementTree as ET
 from app.pipeline.sheet_music_render import render_score_png, add_tablature_to_xml, tab_pages, quantize_events, timeline_events
 
 
-def transcribe_bass(y, sr):
+def transcribe_bass(y, sr, frame_length=2048, split_attacks=True):
     import librosa
     import numpy as np
     if not len(y) or np.max(np.abs(y)) < 1e-5:
@@ -19,26 +19,26 @@ def transcribe_bass(y, sr):
     events = []
     for base in range(0, len(y), sr * 20):
         chunk = y[base:base + sr * 20]
-        if len(chunk) < 2048 or np.max(np.abs(chunk)) < 1e-5:
+        if len(chunk) < frame_length or np.max(np.abs(chunk)) < 1e-5:
             continue
         f0, voiced, probability = librosa.pyin(
-            chunk, sr=sr, fmin=30, fmax=600, frame_length=2048,
+            chunk, sr=sr, fmin=30, fmax=600, frame_length=frame_length,
             hop_length=hop, fill_na=np.nan,
         )
-        rms = librosa.feature.rms(y=chunk, frame_length=2048, hop_length=hop)[0]
+        rms = librosa.feature.rms(y=chunk, frame_length=frame_length, hop_length=hop)[0]
         floor = max(float(np.max(rms)) * .06, 1e-5)
         pitches = np.full(len(f0), -1, dtype=int)
         valid = voiced & np.isfinite(f0) & (probability > .08) & (rms[:len(f0)] > floor)
         pitches[valid] = np.rint(librosa.hz_to_midi(f0[valid])).astype(int)
         # Preserve repeated notes by splitting at detected attacks as well as pitch changes.
-        attacks = set(librosa.onset.onset_detect(y=chunk, sr=sr, hop_length=hop).tolist())
+        attacks = set(librosa.onset.onset_detect(y=chunk, sr=sr, hop_length=hop).tolist()) if split_attacks else set()
         start = 0
         for i in range(1, len(pitches) + 1):
             if i < len(pitches) and pitches[i] == pitches[start] and i not in attacks:
                 continue
             a, b = base / sr + start * hop / sr, min((base + len(chunk)) / sr, base / sr + i * hop / sr)
             if pitches[start] >= 0 and b - a >= .07:
-                events.append(dict(start=round(a, 4), end=round(b, 4), pitch=int(pitches[start]), velocity=85))
+                events.append(dict(start=round(a, 4), end=round(b, 4), pitch=int(pitches[start]), velocity=85, confidence=float(np.median(probability[start:i]))))
             start = i
     return events
 
@@ -87,39 +87,42 @@ def write_score(events, directory: Path, *, stem: str, bpm: float, beats: int,
     part.insert(0, clef.BassClef() if stem == 'bass' else clef.PercussionClef())
     part.insert(0, meter.TimeSignature(f'{beats}/4'))
     part.insert(0, tempo.MetronomeMark(text=f'{bpm:g} BPM', number=bpm))
-    quantized = quantize_events(events, bpm=bpm, offset=offset)
+    division = 8 if stem == 'drums' else 4
+    quantized = quantize_events(events, bpm=bpm, offset=offset, subdivision=division)
     cursor = 0
     for tick in sorted(quantized):
         if tick < cursor:
             continue
         if tick > cursor:
-            part.insert(cursor / 4, note.Rest(quarterLength=(tick - cursor) / 4))
+            part.insert(cursor / division, note.Rest(quarterLength=(tick - cursor) / division))
         group = quantized[tick]
         if stem == 'bass':
             event, end = max(group, key=lambda v: v[1])
             following = next((t for t in sorted(quantized) if t > tick), end)
             length = max(1, min(end, following) - tick)
-            item = note.Note(event['pitch'], quarterLength=length / 4)
+            item = note.Note(event['pitch'], quarterLength=length / division)
+            item.volume.velocity = int(event.get('velocity',85))
         else:
-            kit = {36: instrument.BassDrum, 38: instrument.SnareDrum, 42: instrument.HiHatCymbal}
-            positions = {36: ('F', 4), 38: ('C', 5), 42: ('G', 5)}
+            kit = {36: instrument.BassDrum, 38: instrument.SnareDrum, 42: instrument.HiHatCymbal, 47: instrument.TomTom, 49: instrument.CrashCymbals}
+            positions = {36: ('F', 4), 38: ('C', 5), 42: ('G', 5), 47: ('D', 5), 49: ('A', 5)}
             notes = []
             for pitch in sorted({event['pitch'] for event, _ in group}):
                 unpitched = note.Unpitched()
                 unpitched.storedInstrument = kit[pitch]()
                 unpitched.storedInstrument.percMapPitch = pitch
+                unpitched.volume.velocity = max(e.get('velocity',85) for e,_ in group if e['pitch']==pitch)
                 unpitched.displayStep, unpitched.displayOctave = positions[pitch]
-                if pitch == 42:
+                if pitch in (42,49):
                     unpitched.notehead = 'x'
                 notes.append(unpitched)
             item = percussion.PercussionChord(notes) if len(notes) > 1 else notes[0]
             length = 1
-            item.quarterLength = .25
-        part.insert(tick / 4, item)
+            item.quarterLength = 1 / division
+        part.insert(tick / division, item)
         cursor = tick + length
-    final_tick = max(cursor, math.ceil(max(0, duration-offset) * bpm/60*4))
+    final_tick = max(cursor, math.ceil(max(0, duration-offset) * bpm/60*division))
     if final_tick > cursor:
-        part.insert(cursor / 4, note.Rest(quarterLength=(final_tick-cursor)/4))
+        part.insert(cursor / division, note.Rest(quarterLength=(final_tick-cursor)/division))
     score.insert(0, part)
     score = score.makeNotation(inPlace=False)
     score.write('musicxml', fp=directory/'score.musicxml')
@@ -132,14 +135,14 @@ def write_score(events, directory: Path, *, stem: str, bpm: float, beats: int,
         for old in list(score_part):
             if old.tag in ('score-instrument', 'midi-instrument'):
                 score_part.remove(old)
-        for pitch, label in [(36, 'Bumbo'), (38, 'Caixa'), (42, 'Chimbal')]:
+        for pitch, label in [(36, 'Bumbo'), (38, 'Caixa'), (42, 'Chimbal')] + [(p,label) for p,label in [(47,'Tom'),(49,'Prato')] if any(e['pitch']==p for e in events)]:
             ident = f'kit-{pitch}'
             inst = ET.SubElement(score_part, 'score-instrument', id=ident)
             ET.SubElement(inst, 'instrument-name').text = label
             inst = ET.SubElement(score_part, 'midi-instrument', id=ident)
             ET.SubElement(inst, 'midi-channel').text = '10'
             ET.SubElement(inst, 'midi-unpitched').text = str(pitch + 1)
-        mapping = {('F', '4'): 36, ('C', '5'): 38, ('G', '5'): 42}
+        mapping = {('F', '4'): 36, ('C', '5'): 38, ('G', '5'): 42, ('D', '5'):47, ('A','5'):49}
         for n in root.findall('.//note'):
             u = n.find('unpitched')
             if u is not None:
@@ -194,7 +197,7 @@ def write_score(events, directory: Path, *, stem: str, bpm: float, beats: int,
 
 
 def generate(source: Path, directory: Path, *, stem: str, bpm: float, beats: int,
-             offset: float, notation: str = "standard", strings: int = 4, progress=lambda percent, message: None):
+             offset: float, notation: str = "standard", strings: int = 4, engine: str = "classic", progress=lambda percent, message: None):
     import librosa
     import soundfile as sf
     info = sf.info(str(source))
@@ -202,13 +205,31 @@ def generate(source: Path, directory: Path, *, stem: str, bpm: float, beats: int
         raise ValueError('Esta versão aceita faixas de até 15 minutos.')
     progress(10, 'Lendo a faixa de áudio…')
     y, sr = librosa.load(str(source), sr=22050, mono=True)
-    progress(25, 'Detectando notas do baixo…' if stem == 'bass' else 'Estimando bumbo, caixa e chimbal…')
-    events = transcribe_bass(y, sr) if stem == 'bass' else transcribe_drums(y, sr)
+    import numpy as np
+    if np.max(np.abs(y)) < 1e-5:
+        raise ValueError('Não foram detectadas notas ou eventos suficientes nesta faixa.')
+    if engine == 'neural':
+        from app.pipeline.neural_notes import neural_bass, neural_drums
+        if stem == 'bass':
+            progress(20,'Conferindo afinação e oitavas do baixo…')
+            support=transcribe_bass(y,sr,frame_length=8192,split_attacks=False)
+            events=neural_bass(source,strings=strings,y=y,sr=sr,support=support,progress=progress)
+            model='Spotify Basic Pitch 0.4.0 (ONNX) + pYIN'
+        else:
+            progress(20,'Preparando reconhecimento das peças da bateria…')
+            events=neural_drums(source,progress=progress)
+            model='ADTOF Frame-RNN (CC BY-NC-SA 4.0)'
+    else:
+        progress(25,'Detectando notas do baixo…' if stem=='bass' else 'Estimando bumbo, caixa e chimbal…')
+        events=transcribe_bass(y,sr) if stem=='bass' else transcribe_drums(y,sr)
+        model='pYIN' if stem=='bass' else 'spectral-bands'
     if not events or not any(e['end'] > offset for e in events):
         raise ValueError('Não foram detectadas notas ou eventos suficientes nesta faixa.')
     progress(75, 'Escrevendo e desenhando a partitura…')
     result = write_score(events, directory, stem=stem, bpm=bpm, beats=beats,
                          offset=offset, duration=info.duration, notation=notation, strings=strings)
+    result.update(engine=engine,model=model)
+    (directory/'transcription.json').write_text(json.dumps(events))
     (directory/'result.json').write_text(json.dumps(result))
     progress(100, 'Partitura pronta — revise a transcrição.')
     return result

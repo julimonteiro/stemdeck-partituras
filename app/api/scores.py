@@ -21,9 +21,10 @@ executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='sheet-music')
 lock = threading.Lock()
 states: dict[str, dict] = {}
 log = logging.getLogger('stemdeck.scores')
-VERSION = 5
+VERSION = 6
 
 class Options(BaseModel):
+    engine: Literal["classic", "neural"] = "classic"
     strings: Literal[4, 5] = 4
     notation: Literal["standard", "tab"] = "standard"
     bpm: float = Field(default=120, ge=30, le=300, allow_inf_nan=False)

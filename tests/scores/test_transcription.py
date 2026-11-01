@@ -156,3 +156,24 @@ def test_five_string_low_b_tablature(tmp_path):
     assert result['timeline'][0]['pitch']==23
     assert result['timeline'][0]['string']==5
     assert result['timeline'][0]['start']==0
+
+
+def test_full_drum_kit_exports_keep_tom_and_crash(tmp_path):
+    events=[dict(start=i*.25,end=i*.25+.06,pitch=p,velocity=70+i*5) for i,p in enumerate([36,38,47,42,49])]
+    write_score(events,tmp_path,stem='drums',bpm=120,beats=4,offset=0,duration=2)
+    root=ET.parse(tmp_path/'score.musicxml').getroot()
+    assert {int(n.text)-1 for n in root.findall('.//midi-unpitched')}=={36,38,47,42,49}
+    _,notes,_=midi_notes(tmp_path/'score.mid')
+    assert {n[1] for n in notes}=={36,38,47,42,49}
+
+
+def test_low_b_pitch_support_ignores_periodic_false_attacks():
+    from app.pipeline.sheet_music import transcribe_bass
+    sr=22050
+    t=np.arange(sr*2)/sr
+    y=sum(.4/(h*h)*np.sin(2*np.pi*30.867706*h*t) for h in range(1,5))
+    support=transcribe_bass(y,sr,frame_length=8192,split_attacks=False)
+    assert len(support)==1
+    assert support[0]['pitch']==23
+    assert support[0]['end']>1.9
+    assert support[0]['confidence']>=.8

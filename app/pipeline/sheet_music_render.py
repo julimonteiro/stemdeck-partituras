@@ -135,20 +135,21 @@ def tab_pages(events, *, bpm, beats, offset, duration, strings=4):
     return pages,measures
 
 
-def quantize_events(events, *, bpm, offset):
+def quantize_events(events, *, bpm, offset, subdivision=4):
     """Shared grid and stable collisions for notation, TAB and MIDI."""
     result = {}
     for event in events:
         if event['end'] <= offset:
             continue
-        tick = max(0, round((event['start']-offset)*bpm/60*4))
-        end = max(tick+1, round((event['end']-offset)*bpm/60*4))
+        tick = max(0, round((event['start']-offset)*bpm/60*subdivision))
+        end = max(tick+1, round((event['end']-offset)*bpm/60*subdivision))
         result.setdefault(tick, []).append((event, end))
     return result
 
 
 def timeline_events(events, *, bpm, offset, stem, strings):
-    grouped = quantize_events(events, bpm=bpm, offset=offset)
+    division=8 if stem=='drums' else 4
+    grouped = quantize_events(events, bpm=bpm, offset=offset,subdivision=division)
     ticks = sorted(grouped)
     result = []
     for index, tick in enumerate(ticks):
@@ -156,8 +157,8 @@ def timeline_events(events, *, bpm, offset, stem, strings):
         selected = [max(group,key=lambda pair:pair[1])] if stem == 'bass' else group
         for event, end in selected:
             if index+1 < len(ticks) and stem == 'bass': end = min(end,ticks[index+1])
-            item = dict(start=offset+tick/4*60/bpm, end=offset+end/4*60/bpm,
-                        pitch=event['pitch'], beats=(end-tick)/4)
+            item = dict(start=offset+tick/division*60/bpm, end=offset+end/division*60/bpm,
+                        pitch=event['pitch'], beats=(end-tick)/division)
             if stem == 'bass':
                 try: item['string'],item['fret']=bass_fingering(event['pitch'],strings)
                 except ValueError: pass

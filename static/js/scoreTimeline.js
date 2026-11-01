@@ -57,7 +57,7 @@ function draw(entry, width, height) {
     const step=Math.min(3.2,(height-20)/(high-low+2));
     const y=diatonicPitch=>10+(high-diatonicPitch)*step;
     for(let i=0;i<5;i++) line(0,y(diatonic(43)+i*2),width,y(diatonic(43)+i*2));
-    yForPitch=e=>entry.stem==='drums'?height*.65-({36:0,38:1,42:2}[e.pitch]||0)*13:y(diatonic(e.pitch));
+    yForPitch=e=>entry.stem==='drums'?height*({36:.75,38:.5,47:.38,42:.23,49:.1}[e.pitch]||.5):y(diatonic(e.pitch));
     entry.staff={bottom:y(diatonic(43)),top:y(diatonic(57)),step};
   }
   entry.measureRects=[];
@@ -86,7 +86,7 @@ function draw(entry, width, height) {
         if(y>bottom+step) for(let ly=bottom+step*2;ly<=y+1;ly+=step*2) node('line',{x1:x-6,y1:ly,x2:x+6,y2:ly,stroke:'currentColor','stroke-width':.8},group);
         if(y<top-step) for(let ly=top-step*2;ly>=y-1;ly-=step*2) node('line',{x1:x-6,y1:ly,x2:x+6,y2:ly,stroke:'currentColor','stroke-width':.8},group);
       }
-      if(entry.stem==='drums' && event.pitch===42) node('text',{x,y:y+4,'font-size':14,'text-anchor':'middle',fill:'currentColor'},group,'×');
+      if(entry.stem==='drums' && [42,49].includes(event.pitch)) node('text',{x,y:y+4,'font-size':14,'text-anchor':'middle',fill:'currentColor'},group,'×');
       else node('ellipse',{cx:x,cy:y,rx:4.3,ry:2.7,transform:`rotate(-20 ${x} ${y})`,fill:base>=2?'#111a21':'currentColor',stroke:'currentColor','stroke-width':1},group);
       if(base<4) node('line',{x1:x+4,y1:y,x2:x+4,y2:Math.max(4,y-19),stroke:'currentColor','stroke-width':1},group);
       if(dotted)node('circle',{cx:x+8,cy:y-1,r:1.3,fill:'currentColor'},group);
