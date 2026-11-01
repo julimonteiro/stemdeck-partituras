@@ -6,7 +6,7 @@ import math
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
-from app.pipeline.sheet_music_render import render_score_png, add_tablature_to_xml, tab_pages, quantize_events
+from app.pipeline.sheet_music_render import render_score_png, add_tablature_to_xml, tab_pages, quantize_events, timeline_events
 
 
 def transcribe_bass(y, sr):
@@ -69,7 +69,7 @@ def transcribe_drums(y, sr):
 
 
 def write_score(events, directory: Path, *, stem: str, bpm: float, beats: int,
-                offset: float, duration: float, notation: str = "standard"):
+                offset: float, duration: float, notation: str = "standard", strings: int = 4):
     from music21 import stream, note, meter, clef, tempo, instrument, percussion, metadata
     import verovio
     from reportlab.pdfgen import canvas
@@ -164,8 +164,8 @@ def write_score(events, directory: Path, *, stem: str, bpm: float, beats: int,
     if notation == 'tab':
         if stem != 'bass':
             raise ValueError('Tablatura disponível apenas para baixo.')
-        add_tablature_to_xml(directory/'score.musicxml')
-        rendered, measures = tab_pages(events, bpm=bpm, beats=beats, offset=offset, duration=duration)
+        add_tablature_to_xml(directory/'score.musicxml', strings)
+        rendered, measures = tab_pages(events, bpm=bpm, beats=beats, offset=offset, duration=duration, strings=strings)
     else:
         toolkit = verovio.toolkit()
         toolkit.setOptions({'pageWidth': 2100, 'pageHeight': 2970, 'scale': 40, 'breaks': 'auto', 'adjustPageHeight': True, 'svgViewBox': True})
@@ -188,12 +188,13 @@ def write_score(events, directory: Path, *, stem: str, bpm: float, beats: int,
         pdf.drawImage(image, 20, A4[1]-20-height*scale, width=width*scale, height=height*scale)
         pdf.showPage()
     pdf.save()
-    return dict(pages=len(rendered), measures=measures, notes=len(events), notation=notation,
+    return dict(pages=len(rendered), measures=measures, notes=len(events), notation=notation, strings=strings,
+                timeline=timeline_events(events, bpm=bpm, offset=offset, stem=stem, strings=strings),
                 bpm=bpm, beats=beats, offset=offset, duration=duration, stem=stem)
 
 
 def generate(source: Path, directory: Path, *, stem: str, bpm: float, beats: int,
-             offset: float, notation: str = "standard", progress=lambda percent, message: None):
+             offset: float, notation: str = "standard", strings: int = 4, progress=lambda percent, message: None):
     import librosa
     import soundfile as sf
     info = sf.info(str(source))
@@ -207,7 +208,7 @@ def generate(source: Path, directory: Path, *, stem: str, bpm: float, beats: int
         raise ValueError('Não foram detectadas notas ou eventos suficientes nesta faixa.')
     progress(75, 'Escrevendo e desenhando a partitura…')
     result = write_score(events, directory, stem=stem, bpm=bpm, beats=beats,
-                         offset=offset, duration=info.duration, notation=notation)
+                         offset=offset, duration=info.duration, notation=notation, strings=strings)
     (directory/'result.json').write_text(json.dumps(result))
     progress(100, 'Partitura pronta — revise a transcrição.')
     return result

@@ -1,9 +1,21 @@
+import { showTimeline, clearTimeline, timelineMode } from './scoreTimeline.js';
 import { currentJobId, bpmChip, audioEngine, multitrack } from './state.js';
 
 let activePanel = null;
+const recentScores = new Map();
+let bassStrings=5;
+function rememberScore(jobId,stem,value){recentScores.set(`${jobId}:${stem}:${value.notation}`,value);if(recentScores.size>12)recentScores.delete(recentScores.keys().next().value);}
+
+function ensureScoreStyles(){
+  if (!document.getElementById('sd-score-css')) {
+    const css = element('link', null, document.head);
+    css.id = 'sd-score-css'; css.rel = 'stylesheet'; css.href = '/css/scores.css';
+  }
+}
 
 export function makeScoreButton(stem) {
   if (!['bass', 'drums'].includes(stem)) return null;
+  ensureScoreStyles();
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'sd-score-button';
@@ -13,7 +25,26 @@ export function makeScoreButton(stem) {
     event.stopPropagation();
     openScore(currentJobId, stem, button);
   });
-  return button;
+  const wrap=document.createElement('div');
+  wrap.className='sd-score-tools';wrap.append(button);
+  wrap.addEventListener('keydown',event=>event.stopPropagation());
+  const view=document.createElement('select');
+  view.className='sd-score-view';view.setAttribute('aria-label',`Visualização de ${stem==='bass'?'baixo':'bateria'}`);
+  for(const [value,label] of [['audio','Áudio'],['standard','Partitura'],...(stem==='bass'?[['tab','TAB']]:[])]){
+    const option=document.createElement('option');option.value=value;option.textContent=label;view.append(option);
+  }
+  view.value=timelineMode(stem);
+  view.addEventListener('change',()=>{
+    activePanel?.();
+    if(view.value==='audio'){clearTimeline(stem);return;}
+    const cached=recentScores.get(`${currentJobId}:${stem}:${view.value}`);
+    if(cached)showTimeline(currentJobId,stem,cached);
+    else openScore(currentJobId,stem,button,view.value,true);
+  });
+  const refresh=()=>{if(!view.isConnected){document.removeEventListener('sd-score-timeline-changed',refresh);return;}view.value=timelineMode(stem);};
+  document.addEventListener('sd-score-timeline-changed',refresh);
+  wrap.append(view);
+  return wrap;
 }
 
 function element(tag, text, parent) {
@@ -23,13 +54,10 @@ function element(tag, text, parent) {
   return node;
 }
 
-function openScore(jobId, stem, trigger) {
+function openScore(jobId, stem, trigger, requestedNotation=null, autoTimeline=false) {
   if (!jobId) return;
   activePanel?.();
-  if (!document.getElementById('sd-score-css')) {
-    const css = element('link', null, document.head);
-    css.id = 'sd-score-css'; css.rel = 'stylesheet'; css.href = '/css/scores.css';
-  }
+  ensureScoreStyles();
   const panel = element('section', null, document.body);
   panel.className = 'sd-score-panel';
   panel.setAttribute('aria-label', 'Partitura');
@@ -56,7 +84,15 @@ function openScore(jobId, stem, trigger) {
   const notation = element('select', null, formatLabel);
   notation.setAttribute('aria-label', 'Formato');
   element('option', 'Partitura tradicional', notation).value = 'standard';
-  if (stem === 'bass') element('option', 'Tablatura (TAB) · 4 cordas', notation).value = 'tab';
+  if (stem === 'bass') element('option', 'Tablatura (TAB)', notation).value = 'tab';
+  if(requestedNotation)notation.value=requestedNotation;
+  const stringsLabel=element('label','Cordas do baixo',form);
+  const strings=element('select',null,stringsLabel);strings.setAttribute('aria-label','Cordas do baixo');
+  element('option','4 cordas · E–A–D–G',strings).value='4';
+  element('option','5 cordas · B–E–A–D–G',strings).value='5';
+  strings.value=String(bassStrings);
+  strings.addEventListener('change',()=>{bassStrings=Number(strings.value);});
+  if(stem!=='bass')stringsLabel.hidden=true;
   if (stem !== 'bass') formatLabel.hidden = true;
   const generate = element('button', 'Gerar partitura', form);
   generate.type = 'submit';
@@ -68,6 +104,8 @@ function openScore(jobId, stem, trigger) {
   progress.setAttribute('aria-label', 'Progresso da transcrição');
   const exports = element('nav', null, panel);
   exports.setAttribute('aria-label', 'Baixar partitura');
+  const timelineButton=element('button','Ver na timeline',panel);timelineButton.type='button';timelineButton.hidden=true;
+  timelineButton.addEventListener('click',()=>{if(result){showTimeline(jobId,stem,result);destroy();}});
   const position = element('div', null, panel);
   const navigation = element('div', null, panel);
   navigation.className = 'sd-score-measures';
@@ -80,6 +118,7 @@ function openScore(jobId, stem, trigger) {
     closed = true;
     clearTimeout(timer); clearInterval(syncTimer); aborter?.abort();
     panel.remove();
+    document.dispatchEvent(new Event("sd-score-timeline-changed"));
     if (activePanel === destroy) activePanel = null;
     if (trigger.isConnected) trigger.focus();
   }
@@ -109,6 +148,8 @@ function openScore(jobId, stem, trigger) {
   }
   function showResult(value, base) {
     result = value;
+    timelineButton.hidden=false;
+    rememberScore(jobId,stem,value);
     exports.replaceChildren(); pages.replaceChildren(); navigation.replaceChildren();
     for (const [label, filename] of [['PDF', 'score.pdf'], ['MusicXML · editar', 'score.musicxml'], ['MIDI', 'score.mid']]) {
       const a = element('a', label, exports);
@@ -176,7 +217,8 @@ function openScore(jobId, stem, trigger) {
     progress.value = value.progress;
     if (value.status === 'done') {
       progress.hidden = true; generate.disabled = false;
-      showResult(value.result, base);
+      if(autoTimeline){rememberScore(jobId,stem,value.result);showTimeline(jobId,stem,value.result);destroy();}
+      else showResult(value.result, base);
     } else if (value.status === 'error') {
       progress.hidden = true; generate.disabled = false;
       status.textContent = `Falha: ${value.message} Você pode tentar novamente.`;
@@ -197,13 +239,13 @@ function openScore(jobId, stem, trigger) {
     if (!form.reportValidity()) return;
     clearTimeout(timer); aborter?.abort(); aborter = new AbortController();
     const sequence = ++requestNumber;
-    result = null; exports.replaceChildren(); pages.replaceChildren(); navigation.replaceChildren(); position.textContent = '';
+    result = null; timelineButton.hidden=true; exports.replaceChildren(); pages.replaceChildren(); navigation.replaceChildren(); position.textContent = '';
     generate.disabled = true; progress.hidden = false; progress.value = 0;
     status.textContent = 'Enviando para transcrição…';
     const base = `/api/jobs/${encodeURIComponent(jobId)}/scores/${stem}`;
     try {
       const value = await request(base, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notation: notation.value, bpm: Number(bpm.value), beats: Number(beats.value), offset: Number(offset.value) }) });
+        body: JSON.stringify({ strings:Number(strings.value), notation: notation.value, bpm: Number(bpm.value), beats: Number(beats.value), offset: Number(offset.value) }) });
       await follow(value, `${base}/${value.token}`, sequence);
     } catch (error) { fail(error, sequence); }
   });

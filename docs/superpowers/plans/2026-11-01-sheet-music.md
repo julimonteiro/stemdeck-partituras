@@ -15,3 +15,5 @@ Deployment: Preserve source at ~/stemdeck-local. Back up every replaced file bef
 
 
 2026-11-01: User authorized public repository and push, installation and app launch. Added user-requested four-string bass TAB with shared quantization and MusicXML fingering. Final review found MIDI tempo-offset, kit-mapping and TAB-collision issues; regression tests failed before fixes and now pass. PDF visual QA found SVG converter failures; switched to resvg-py at print resolution. Original JavaScript tests and real browser integration passed. No user audio is committed.
+
+User follow-up: Added per-lane waveform/staff/TAB selection with time-scaled notes, active-note/measure highlighting, seek and playback auto-scroll. Added 5-string B0–E1–A1–D2–G2 option. Review found pending result could override a newer view selection; browser regression reproduced it, then passed after closing the pending panel on a newer selection. Backend now has 15 focused tests.

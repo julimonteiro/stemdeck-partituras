@@ -142,3 +142,17 @@ def test_tab_quantized_collision_matches_musicxml(tmp_path):
     assert len(notes)==1
     # Fourth-string E is drawn 48px below the top G string (y140).
     assert notes[0].get('y') == '193'
+
+
+def test_five_string_low_b_tablature(tmp_path):
+    result=write_score([{'start':0.,'end':1.,'pitch':23,'velocity':85}],tmp_path,
+                       stem='bass',bpm=120,beats=4,offset=0,duration=2,notation='tab',strings=5)
+    root=ET.parse(tmp_path/'score.musicxml').getroot()
+    assert root.findtext('.//staff-lines')=='5'
+    assert root.findtext('.//technical/string')=='5'
+    assert root.findtext('.//technical/fret')=='0'
+    assert root.findtext('.//staff-tuning[@line="1"]/tuning-step')=='B'
+    assert result['strings']==5
+    assert result['timeline'][0]['pitch']==23
+    assert result['timeline'][0]['string']==5
+    assert result['timeline'][0]['start']==0
