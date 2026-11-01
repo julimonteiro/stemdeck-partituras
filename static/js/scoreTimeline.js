@@ -32,12 +32,12 @@ function draw(entry, width, height) {
   const svg=node('svg',{viewBox:`0 0 ${width} ${height}`,width:'100%',height:'100%',role:'group','aria-label':mode==='tab'?'Tablatura na timeline':'Partitura na timeline'},entry.overlay);
   const duration=totalDuration || result.duration;
   const px=time=>Math.max(0,Math.min(width,time/duration*width));
-  const line=(x1,y1,x2,y2,color='#8c8a80',lineWidth=.7)=>node('line',{x1,y1,x2,y2,stroke:color,'stroke-width':lineWidth},svg);
+  const line=(x1,y1,x2,y2,color='#38444e',lineWidth=.7)=>node('line',{x1,y1,x2,y2,stroke:color,'stroke-width':lineWidth},svg);
   let yForPitch;
   if (mode==='tab') {
     const labels=['G','D','A','E',...(result.strings===5?['B']:[])];
     const top=15, gap=Math.min(13,(height-25)/(labels.length-1));
-    labels.forEach((label,index)=>{const y=top+index*gap;line(0,y,width,y);});
+    labels.forEach((label,index)=>{const y=top+index*gap;line(0,y,width,y);node('text',{x:5,y:y+3,'font-size':9,'font-family':'system-ui',fill:'#728794'},svg,label);});
     yForPitch=e=>top+((e.string||1)-1)*gap;
   } else {
     const steps=[0,0,1,1,2,3,3,4,4,5,5,6];
@@ -56,18 +56,18 @@ function draw(entry, width, height) {
     const x=px(measure.start), end=px(measure.start+result.beats*60/result.bpm);
     const rect=node('rect',{x,y:0,width:Math.max(0,end-x),height,fill:'transparent','class':'sd-timeline-measure'},svg);
     entry.measureRects.push({rect,start:measure.start,end:measure.start+result.beats*60/result.bpm});
-    line(x,8,x,height-4,'#777',1);
-    node('text',{x:x+3,y:9,'font-size':9,fill:'#686459','font-family':'system-ui'},svg,String(measure.number));
+    line(x,8,x,height-4,'#53616c',1);
+    node('text',{x:x+3,y:9,'font-size':9,fill:'#7e909d','font-family':'system-ui'},svg,String(measure.number));
   }
   entry.groups=[];
   result.timeline.forEach((event,index)=>{
-    const x=Math.max(8,Math.min(width-8,px(event.start))),y=yForPitch(event);
+    const x=Math.max(24,Math.min(width-10,px(event.start))),y=yForPitch(event);
     const group=node('g',{'class':'sd-timeline-note','data-start':event.start,'data-end':event.end,
       tabindex:0,role:'button','aria-label':`${entry.stem==='bass'?'Nota':'Batida'} ${index+1}, ${event.start.toFixed(2)} segundos`},svg);
     if (mode==='tab') {
-      node('line',{x1:x+7,y1:y-4,x2:Math.max(x+7,px(event.end)-3),y2:y-4,stroke:'#aaa','stroke-width':1},group);
-      node('rect',{x:x-7,y:y-8,width:16,height:17,fill:'#faf7ed'},group);
-      node('text',{x,y:y+4,'font-size':13,'font-weight':'bold','font-family':'system-ui','text-anchor':'middle',fill:'currentColor'},group,event.fret??'?');
+      node('line',{x1:x+7,y1:y-4,x2:Math.max(x+7,px(event.end)-3),y2:y-4,stroke:'#58707f','stroke-width':1},group);
+      node('rect',{x:x-7,y:y-8,width:18,height:18,rx:4,fill:'#111a21','class':'sd-fret-bed'},group);
+      node('text',{x,y:y+4,'font-size':14,'font-weight':'600','font-family':'system-ui','text-anchor':'middle',fill:'currentColor'},group,event.fret??'?');
     } else {
       const dotted=[.375,.75,1.5,3,6].some(n=>Math.abs(event.beats-n)<.001);
       const base=dotted?event.beats/1.5:event.beats;
@@ -78,7 +78,7 @@ function draw(entry, width, height) {
         if(y<top-step) for(let ly=top-step*2;ly>=y-1;ly-=step*2) node('line',{x1:x-6,y1:ly,x2:x+6,y2:ly,stroke:'currentColor','stroke-width':.8},group);
       }
       if(entry.stem==='drums' && event.pitch===42) node('text',{x,y:y+4,'font-size':14,'text-anchor':'middle',fill:'currentColor'},group,'×');
-      else node('ellipse',{cx:x,cy:y,rx:4.3,ry:2.7,transform:`rotate(-20 ${x} ${y})`,fill:base>=2?'#faf7ed':'currentColor',stroke:'currentColor','stroke-width':1},group);
+      else node('ellipse',{cx:x,cy:y,rx:4.3,ry:2.7,transform:`rotate(-20 ${x} ${y})`,fill:base>=2?'#111a21':'currentColor',stroke:'currentColor','stroke-width':1},group);
       if(base<4) node('line',{x1:x+4,y1:y,x2:x+4,y2:Math.max(4,y-19),stroke:'currentColor','stroke-width':1},group);
       if(dotted)node('circle',{cx:x+8,cy:y-1,r:1.3,fill:'currentColor'},group);
       const flags=base<=.25?2:base<=.5?1:0;
@@ -90,7 +90,7 @@ function draw(entry, width, height) {
     group.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' ')seek(e);});
     entry.groups.push({element:group,event});
   });
-  entry.cursor=node('line',{x1:0,y1:0,x2:0,y2:height,stroke:'#d65b19','stroke-width':2,'class':'sd-timeline-cursor'},svg);
+  entry.cursor=node('line',{x1:0,y1:0,x2:0,y2:height,stroke:'#f0b62e','stroke-width':2,'class':'sd-timeline-cursor'},svg);
 }
 
 function update() {
@@ -111,7 +111,7 @@ function update() {
     entry.overlay.hidden=rb.height===0;
     if(width!==entry.width||Math.abs(height-entry.height)>.5){entry.width=width;entry.height=height;entry.overlay.replaceChildren();draw(entry,width,height);}
     for(const {element,event} of entry.groups) element.classList.toggle('sd-playing',time>=event.start&&time<event.end);
-    for(const m of entry.measureRects) m.rect.setAttribute('fill',time>=m.start&&time<m.end?'#e9c55a22':'transparent');
+    for(const m of entry.measureRects) m.rect.setAttribute('fill',time>=m.start&&time<m.end?'#f3b83009':'transparent');
     const x=time/(totalDuration||entry.result.duration)*width;
     entry.cursor?.setAttribute('x1',x);entry.cursor?.setAttribute('x2',x);
   }

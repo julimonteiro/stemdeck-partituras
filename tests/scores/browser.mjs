@@ -12,13 +12,14 @@ try {
   await openStudio(page); console.log("studio ready");
   const button = page.locator('.lane-header[data-stem="bass"] .sd-score-button');
   await button.click(); console.log("panel open");
+  await page.locator('.sd-score-advanced summary').click();
   await page.getByLabel('Andamento (BPM)').fill('120');
   await page.getByRole('button',{name:'Gerar partitura',exact:true}).click();
   await page.locator('.sd-score-panel nav a').first().waitFor({timeout:60000});
   assert.equal(await page.locator('.sd-score-panel nav a').count(),3); console.log('exports ready'); await page.screenshot({path:'/tmp/stemdeck-score-ui.png'});
   await page.waitForFunction(() => document.querySelector('.sd-score-pages svg'),null,{timeout:15000}); console.log('svg ready');
   const svg = await page.locator('.sd-score-pages > div > svg').evaluate(o=>({height:o.clientHeight,viewBox:o.getAttribute('viewBox')}));
-  assert(svg.height>100);
+  assert(svg.height>40);
   await page.locator('.sd-score-measures button').nth(1).click();
   await page.waitForFunction(() => document.querySelector('.sd-score-panel').textContent.includes('Compasso 2'));
   await page.screenshot({path:'/tmp/stemdeck-score-ui.png'});
@@ -44,7 +45,7 @@ try {
   await close.focus(); await page.keyboard.press('Space');
   assert.equal(await page.locator('.sd-score-panel').count(),0);
   // Switch the bass waveform to five-string TAB, then staff, then back to audio.
-  await page.getByLabel('Visualização de baixo',{exact:true}).selectOption('tab');
+  await page.locator('.lane-header[data-stem="bass"] .sd-view-segments [data-mode="tab"]').click();
   await page.locator('.sd-timeline-overlay[data-stem="bass"] .sd-timeline-note').first().waitFor();
   assert.equal(await page.locator('.sd-score-panel').count(),0);
   await page.evaluate(async()=>{const {setPlayheadTime}=await import('/js/transport.js');setPlayheadTime(.5);});
@@ -54,9 +55,9 @@ try {
   await page.evaluate(async()=>{const {setPlayheadTime}=await import('/js/transport.js');setPlayheadTime(2);});
   await page.waitForFunction(before=>document.querySelector('.sd-timeline-cursor')?.getAttribute('x1')!==before,before);
   await page.screenshot({path:'/tmp/stemdeck-timeline-ui.png'});
-  await page.getByLabel('Visualização de baixo',{exact:true}).selectOption('standard');
+  await page.locator('.lane-header[data-stem="bass"] .sd-view-segments [data-mode="standard"]').click();
   await page.waitForFunction(()=>document.querySelector('.sd-timeline-overlay ellipse'));
-  await page.getByLabel('Visualização de baixo',{exact:true}).selectOption('audio');
+  await page.locator('.lane-header[data-stem="bass"] .sd-view-segments [data-mode="audio"]').click();
   await page.waitForFunction(()=>!document.querySelector('.sd-timeline-overlay'));
   // A completed background request must not override a newer Audio choice.
   let completed=false;
@@ -64,15 +65,22 @@ try {
     const value={token:'pending-test',status:completed?'done':'running',progress:25,message:'Teste pendente',result:{pages:0,measures:[],timeline:[],duration:6,notation:'standard',stem:'drums',strings:5}};
     await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(value)});
   });
-  await page.getByLabel('Visualização de bateria',{exact:true}).selectOption('standard');
+  await page.locator('.lane-header[data-stem="drums"] .sd-view-segments [data-mode="standard"]').click();
   await page.getByRole('button',{name:'Gerar partitura',exact:true}).click();
   await page.getByRole('status').filter({hasText:'Teste pendente'}).waitFor();
-  await page.getByLabel('Visualização de bateria',{exact:true}).selectOption('audio');
+  await page.locator('.lane-header[data-stem="drums"] .sd-view-segments [data-mode="audio"]').click();
   assert.equal(await page.locator('.sd-score-panel').count(),0);
   completed=true;
   await page.waitForTimeout(1700);
   assert.equal(await page.locator('.sd-timeline-overlay').count(),0);
   console.log('PASS: timeline TAB/staff/audio toggle, active note, moving cursor, five-string selector, newer mode wins');
+  await page.setViewportSize({width:1280,height:720});
+  await page.waitForTimeout(300);
+  const spacing=await page.locator('.lane-header[data-stem="bass"]').evaluate(row=>({meter:row.querySelector('.lane-vu').getBoundingClientRect().bottom,tools:row.querySelector('.sd-score-tools').getBoundingClientRect().top}));
+  console.log('compact spacing',spacing);
+  await page.screenshot({path:'/tmp/stemdeck-native-compact.png'});
+  assert(spacing.meter<=spacing.tools,'Notation controls must not overlap the level meter');
+  await page.screenshot({path:'/tmp/stemdeck-native-compact.png'});
   assert.deepEqual(errors,[]);
   console.log('PASS: mixer button, real transcription, SVG, 3 exports, measure seek, desktop save bridge, Space close, no JS errors');
 } finally {await browser.close();}

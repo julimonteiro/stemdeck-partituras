@@ -23,7 +23,7 @@ O aplicativo original continua documentado no README.md. A extensão usa music21
 
 1. Instale o StemDeck oficial v0.20.0 e conclua sua primeira abertura.
 2. Clone este repositório e execute `python3 scripts/install-partituras-macos.py`.
-3. Feche e reabra o StemDeck. No Mixer, clique em **♫ Partitura** abaixo de **Bass** ou **Drums**.
+3. Feche e reabra o StemDeck. No Mixer, clique em **Partitura** abaixo de **Bass** ou **Drums**.
 4. Para baixo, escolha **Partitura tradicional** ou **Tablatura (TAB)**, confira BPM/compasso/início e clique em **Gerar partitura**.
 5. Exporte PDF, MusicXML (MuseScore) ou MIDI. Clique nos números dos compassos para posicionar o áudio.
 
@@ -42,8 +42,13 @@ Os dados de teste são gerados com `python tests/e2e/seed.py /tmp/stemdeck-score
 
 ## Visualização na timeline
 
-Abaixo de **♫ Partitura**, use o seletor **Áudio / Partitura / TAB** da faixa. Se a transcrição ainda não existe, escolha as opções e gere uma vez. O botão **Ver na timeline** também substitui a onda daquela faixa pela notação.
+Abaixo de **Partitura**, use o seletor **Áudio / Pauta / TAB** da faixa. Se a transcrição ainda não existe, escolha as opções e gere uma vez. O botão **Ver na timeline** também substitui a onda daquela faixa pela notação.
 
 A nota atual e o compasso ficam destacados, com cursor alinhado ao áudio. A timeline amplia automaticamente para facilitar a leitura e rola para acompanhar a reprodução; clique numa nota para posicionar o áudio. Selecione **Áudio** para voltar à onda. O zoom e os controles de reprodução continuam disponíveis. O desenho na timeline prioriza posição no tempo; o PDF e o MusicXML oferecem a paginação musical para impressão e edição.
 
 O seletor **Cordas do baixo** permite 4 ou 5 cordas; nesta versão a interface começa em 5 cordas. A digitação é automática e usa a menor casa disponível, podendo diferir da posição que um baixista escolheria.
+
+
+## Interface integrada ao estúdio
+
+Controles de visualização agrupados no rodapé das faixas, timeline escura com destaque âmbar e indicação das cordas. A configuração abre em um inspetor lateral alinhado ao estúdio, com ajustes avançados recolhidos. O inspetor respeita a altura dos controles de reprodução. Validado também em janela 1280×720, sem sobrepor o medidor da faixa.
