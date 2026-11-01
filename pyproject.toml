@@ -10,7 +10,7 @@ dependencies = [
     "music21>=9,<10",
     "verovio>=5,<6",
     "reportlab>=4,<5",
-    "svglib==1.5.1",
+    "resvg-py>=0.2,<1",
     "fastapi>=0.115,!=0.136.3",
     "uvicorn[standard]>=0.30",
     # Floor raised for CVE-2026-55404 (fixed in 2026.7.4). The lock pin alone is

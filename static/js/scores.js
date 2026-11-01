@@ -52,6 +52,12 @@ function openScore(jobId, stem, trigger) {
   const bpm = input('Andamento (BPM)', detectedBpm >= 30 && detectedBpm <= 300 ? detectedBpm : 120, 30, 300, .1);
   const beats = input('Tempos por compasso (/4)', 4, 1, 12, 1);
   const offset = input('Primeiro tempo (segundos)', 0, 0, 60, .01);
+  const formatLabel = element('label', 'Formato', form);
+  const notation = element('select', null, formatLabel);
+  notation.setAttribute('aria-label', 'Formato');
+  element('option', 'Partitura tradicional', notation).value = 'standard';
+  if (stem === 'bass') element('option', 'Tablatura (TAB) · 4 cordas', notation).value = 'tab';
+  if (stem !== 'bass') formatLabel.hidden = true;
   const generate = element('button', 'Gerar partitura', form);
   generate.type = 'submit';
   element('small', 'Grade de semicolcheias. Ajuste BPM, compasso e início se o ritmo não alinhar. Limite: 15 minutos.', panel);
@@ -79,7 +85,7 @@ function openScore(jobId, stem, trigger) {
   }
   activePanel = destroy;
   close.addEventListener('click', destroy);
-  panel.addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); destroy(); } });
+  panel.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Escape') { e.stopPropagation(); destroy(); } });
   heading.focus();
   async function request(url, options = {}) {
     const response = await fetch(url, { ...options, signal: aborter.signal });
@@ -98,11 +104,8 @@ function openScore(jobId, stem, trigger) {
     navigation.children[measure?.number - 1]?.setAttribute('aria-current', 'true');
     if (highlighted === measure?.id) return;
     highlighted = measure?.id;
-    for (const obj of pages.querySelectorAll('object')) {
-      const doc = obj.contentDocument;
-      doc?.querySelectorAll('.sd-current').forEach(node => node.classList.remove('sd-current'));
-      doc?.getElementById(highlighted)?.classList.add('sd-current');
-    }
+    pages.querySelectorAll('.sd-current').forEach(node => node.classList.remove('sd-current'));
+    if (highlighted) pages.querySelector(`#${CSS.escape(highlighted)}`)?.classList.add('sd-current');
   }
   function showResult(value, base) {
     result = value;
@@ -110,6 +113,18 @@ function openScore(jobId, stem, trigger) {
     for (const [label, filename] of [['PDF', 'score.pdf'], ['MusicXML · editar', 'score.musicxml'], ['MIDI', 'score.mid']]) {
       const a = element('a', label, exports);
       a.href = `${base}/file/${filename}`; a.download = `${stem}-${filename}`;
+      a.addEventListener('click', async (event) => {
+        const invoke = window.__TAURI__?.core?.invoke;
+        if (!invoke) return;
+        event.preventDefault(); event.stopPropagation();
+        try {
+          const token = await invoke('pick_export_destination', { filename: a.download });
+          if (!token) return;
+          status.textContent = 'Salvando arquivo…';
+          await invoke('download_to_path', { token, url: a.href });
+          status.textContent = 'Arquivo salvo.';
+        } catch (error) { status.textContent = `Falha ao salvar: ${String(error)}`; }
+      });
     }
     for (const measure of result.measures) {
       const button = element('button', String(measure.number), navigation);
@@ -121,23 +136,37 @@ function openScore(jobId, stem, trigger) {
         pages.querySelector(`[data-page="${measure.page}"]`)?.scrollIntoView({ block: 'nearest' });
       });
     }
+    const renderingResult = result;
     for (let page = 1; page <= result.pages; page++) {
-      const obj = element('object', null, pages);
-      obj.type = 'image/svg+xml'; obj.data = `${base}/file/page-${page}.svg`;
-      obj.dataset.page = String(page);
-      obj.setAttribute('aria-label', `Partitura, página ${page}`);
-      obj.addEventListener('load', () => {
-        const doc = obj.contentDocument;
-        if (!doc?.documentElement) return;
-        const style = doc.createElementNS('http://www.w3.org/2000/svg', 'style');
-        style.textContent = '.sd-current .note,.sd-current .rest{fill:#bc4e00!important;stroke:#bc4e00!important}';
-        doc.documentElement.append(style);
-        const svg = doc.documentElement;
-        const box = svg.getAttribute('viewBox')?.split(/\s+/).map(Number);
-        if (box?.length === 4) obj.style.aspectRatio = `${box[2]} / ${box[3]}`;
-        obj.style.height = 'auto';
-        highlighted = null; highlight();
-      });
+      const holder = element('div', 'Carregando página…', pages);
+      holder.dataset.page = String(page);
+      // Inline SVG works under the desktop's object-src 'none' policy. Only
+      // notation from our generated endpoint is loaded, with active content removed.
+      fetch(`${base}/file/page-${page}.svg`, {signal: aborter.signal})
+        .then(response => { if (!response.ok) throw new Error('Página indisponível'); return response.text(); })
+        .then(text => {
+          if (closed || result !== renderingResult) return;
+          const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
+          const svg = doc.documentElement;
+          if (svg.localName !== 'svg') throw new Error('Partitura inválida');
+          svg.querySelectorAll('script,foreignObject,iframe,object,embed').forEach(node => node.remove());
+          for (const node of [svg, ...svg.querySelectorAll('*')]) {
+            for (const attr of [...node.attributes]) {
+              if (/^on/i.test(attr.name) || (attr.localName === 'href' && !attr.value.startsWith('#'))) node.removeAttributeNode(attr);
+            }
+          }
+          if (!svg.getAttribute('viewBox')) {
+            svg.setAttribute('viewBox', `0 0 ${parseFloat(svg.getAttribute('width'))} ${parseFloat(svg.getAttribute('height'))}`);
+          }
+          const style = doc.createElementNS('http://www.w3.org/2000/svg', 'style');
+          style.textContent = '.sd-current .note,.sd-current .rest{fill:#bc4e00!important;stroke:#bc4e00!important}';
+          svg.append(style);
+          svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', `Partitura, página ${page}`);
+          holder.replaceChildren(document.importNode(svg, true));
+          highlighted = null; highlight();
+        }).catch(error => {
+          if (!closed && error.name !== 'AbortError' && result === renderingResult) holder.textContent = `Falha ao carregar página: ${error.message}`;
+        });
     }
     highlight();
   }
@@ -174,7 +203,7 @@ function openScore(jobId, stem, trigger) {
     const base = `/api/jobs/${encodeURIComponent(jobId)}/scores/${stem}`;
     try {
       const value = await request(base, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bpm: Number(bpm.value), beats: Number(beats.value), offset: Number(offset.value) }) });
+        body: JSON.stringify({ notation: notation.value, bpm: Number(bpm.value), beats: Number(beats.value), offset: Number(offset.value) }) });
       await follow(value, `${base}/${value.token}`, sequence);
     } catch (error) { fail(error, sequence); }
   });

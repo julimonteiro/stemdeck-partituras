@@ -21,6 +21,8 @@ def test_invalid_request_does_not_queue(client):
     assert client.post('/api/jobs/abc123def456/scores/guitar', json={}).status_code == 422
     for body in [{'bpm': 0}, {'bpm': 'nan'}, {'beats': 0}, {'offset': -1}]:
         assert client.post('/api/jobs/abc123def456/scores/bass', json=body).status_code == 422
+    assert client.post('/api/jobs/abc123def456/scores/drums', json={'notation':'tab'}).status_code == 422
+    assert client.post('/api/jobs/abc123def456/scores/bass', json={'notation':'arbitrary'}).status_code == 422
     assert client.post('/api/jobs/invalid/scores/bass', json={}).status_code == 404
 
 

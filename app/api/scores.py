@@ -21,9 +21,10 @@ executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='sheet-music')
 lock = threading.Lock()
 states: dict[str, dict] = {}
 log = logging.getLogger('stemdeck.scores')
-VERSION = 1
+VERSION = 4
 
 class Options(BaseModel):
+    notation: Literal["standard", "tab"] = "standard"
     bpm: float = Field(default=120, ge=30, le=300, allow_inf_nan=False)
     beats: int = Field(default=4, ge=1, le=12)
     offset: float = Field(default=0, ge=0, le=60, allow_inf_nan=False)
@@ -98,6 +99,8 @@ def work(key, source, directory, stem, options):
 
 @router.post('/jobs/{job_id}/scores/{stem}')
 def create(job_id: str, stem: Literal['bass', 'drums'], options: Options):
+    if stem == "drums" and options.notation == "tab":
+        raise HTTPException(422, "Tablatura disponível apenas para baixo.")
     source = _validate_stem_path(job_id, stem)
     signature = [VERSION, stem, source.stat().st_size, source.stat().st_mtime_ns, options.model_dump()]
     token = hashlib.sha256(json.dumps(signature, sort_keys=True).encode()).hexdigest()[:20]
@@ -136,7 +139,7 @@ def download(job_id: str, stem: Literal['bass', 'drums'], token: str, filename: 
         raise HTTPException(404, 'Arquivo não encontrado.')
     if filename.endswith('.svg'):
         return FileResponse(directory/filename, media_type='image/svg+xml',
-                            headers={'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'"})
+                            headers={'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; font-src data:"})
     types = {'score.musicxml': 'application/vnd.recordare.musicxml+xml',
              'score.mid': 'audio/midi', 'score.pdf': 'application/pdf'}
     return FileResponse(directory/filename, media_type=types[filename], filename=f'{stem}-{filename}')

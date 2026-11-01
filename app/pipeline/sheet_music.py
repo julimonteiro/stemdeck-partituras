@@ -6,6 +6,8 @@ import math
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
+from app.pipeline.sheet_music_render import render_score_png, add_tablature_to_xml, tab_pages, quantize_events
+
 
 def transcribe_bass(y, sr):
     import librosa
@@ -67,13 +69,13 @@ def transcribe_drums(y, sr):
 
 
 def write_score(events, directory: Path, *, stem: str, bpm: float, beats: int,
-                offset: float, duration: float):
+                offset: float, duration: float, notation: str = "standard"):
     from music21 import stream, note, meter, clef, tempo, instrument, percussion, metadata
     import verovio
     from reportlab.pdfgen import canvas
-    from reportlab.graphics import renderPDF
+    from reportlab.lib.utils import ImageReader
+    import io
     from reportlab.lib.pagesizes import A4
-    from svglib.svglib import svg2rlg
 
     directory.mkdir(parents=True, exist_ok=True)
     score = stream.Score()
@@ -84,14 +86,8 @@ def write_score(events, directory: Path, *, stem: str, bpm: float, beats: int,
     part.insert(0, instrument.ElectricBass() if stem == 'bass' else instrument.Percussion())
     part.insert(0, clef.BassClef() if stem == 'bass' else clef.PercussionClef())
     part.insert(0, meter.TimeSignature(f'{beats}/4'))
-    part.insert(0, tempo.MetronomeMark(number=bpm))
-    quantized = {}
-    for event in events:
-        if event['end'] <= offset:
-            continue
-        tick = max(0, round((event['start'] - offset) * bpm / 60 * 4))
-        end = max(tick + 1, round((event['end'] - offset) * bpm / 60 * 4))
-        quantized.setdefault(tick, []).append((event, end))
+    part.insert(0, tempo.MetronomeMark(text=f'{bpm:g} BPM', number=bpm))
+    quantized = quantize_events(events, bpm=bpm, offset=offset)
     cursor = 0
     for tick in sorted(quantized):
         if tick < cursor:
@@ -111,6 +107,7 @@ def write_score(events, directory: Path, *, stem: str, bpm: float, beats: int,
             for pitch in sorted({event['pitch'] for event, _ in group}):
                 unpitched = note.Unpitched()
                 unpitched.storedInstrument = kit[pitch]()
+                unpitched.storedInstrument.percMapPitch = pitch
                 unpitched.displayStep, unpitched.displayOctave = positions[pitch]
                 if pitch == 42:
                     unpitched.notehead = 'x'
@@ -127,42 +124,76 @@ def write_score(events, directory: Path, *, stem: str, bpm: float, beats: int,
     score = score.makeNotation(inPlace=False)
     score.write('musicxml', fp=directory/'score.musicxml')
     score.write('midi', fp=directory/'score.mid')
-    # MIDI starts at source time zero, including any configured first-beat delay.
+    if stem == 'drums':
+        # Music21's generic percussion part omits the per-note kit mapping in XML.
+        tree = ET.parse(directory/'score.musicxml')
+        root = tree.getroot()
+        score_part = root.find('./part-list/score-part')
+        for old in list(score_part):
+            if old.tag in ('score-instrument', 'midi-instrument'):
+                score_part.remove(old)
+        for pitch, label in [(36, 'Bumbo'), (38, 'Caixa'), (42, 'Chimbal')]:
+            ident = f'kit-{pitch}'
+            inst = ET.SubElement(score_part, 'score-instrument', id=ident)
+            ET.SubElement(inst, 'instrument-name').text = label
+            inst = ET.SubElement(score_part, 'midi-instrument', id=ident)
+            ET.SubElement(inst, 'midi-channel').text = '10'
+            ET.SubElement(inst, 'midi-unpitched').text = str(pitch + 1)
+        mapping = {('F', '4'): 36, ('C', '5'): 38, ('G', '5'): 42}
+        for n in root.findall('.//note'):
+            u = n.find('unpitched')
+            if u is not None:
+                pitch = mapping[(u.findtext('display-step'), u.findtext('display-octave'))]
+                inst = ET.Element('instrument', id=f'kit-{pitch}')
+                duration_node = n.find('duration')
+                n.insert(list(n).index(duration_node) + 1, inst)
+        tree.write(directory/'score.musicxml', encoding='utf-8', xml_declaration=True)
+    # Delay note events directly: a MusicXML roundtrip discards drum assignments,
+    # and shifting measures shifts the tempo mark away from tick zero.
     if offset:
-        from music21 import converter
-        midi_score = converter.parse(directory/'score.musicxml')
-        for p in midi_score.parts:
-            p.shiftElements(offset * bpm/60, classFilterList=['Measure'])
-        midi_score.write('midi', fp=directory/'score.mid')
-    toolkit = verovio.toolkit()
-    toolkit.setOptions({'pageWidth': 2100, 'pageHeight': 2970, 'scale': 40, 'breaks': 'auto', 'adjustPageHeight': True})
-    if not toolkit.loadFile(str(directory/'score.musicxml')):
-        raise RuntimeError('Não foi possível desenhar a partitura.')
+        from music21 import midi
+        data = midi.MidiFile()
+        data.open(directory/'score.mid'); data.read(); data.close()
+        delay = round(offset * bpm / 60 * data.ticksPerQuarterNote)
+        for track in data.tracks:
+            for index, event in enumerate(track.events):
+                if event.type == midi.ChannelVoiceMessages.NOTE_ON and event.velocity:
+                    track.events[index - 1].time += delay
+                    break
+        data.open(directory/'score.mid', 'wb'); data.write(); data.close()
+    if notation == 'tab':
+        if stem != 'bass':
+            raise ValueError('Tablatura disponível apenas para baixo.')
+        add_tablature_to_xml(directory/'score.musicxml')
+        rendered, measures = tab_pages(events, bpm=bpm, beats=beats, offset=offset, duration=duration)
+    else:
+        toolkit = verovio.toolkit()
+        toolkit.setOptions({'pageWidth': 2100, 'pageHeight': 2970, 'scale': 40, 'breaks': 'auto', 'adjustPageHeight': True, 'svgViewBox': True})
+        if not toolkit.loadFile(str(directory/'score.musicxml')):
+            raise RuntimeError('Não foi possível desenhar a partitura.')
+        rendered = [toolkit.renderToSVG(page) for page in range(1, toolkit.getPageCount()+1)]
+        measures = []
     pdf = canvas.Canvas(str(directory/'score.pdf'), pagesize=A4)
-    measures = []
-    for page in range(1, toolkit.getPageCount() + 1):
-        svg = toolkit.renderToSVG(page)
+    for page, svg in enumerate(rendered, 1):
         path = directory/f'page-{page}.svg'
         path.write_text(svg)
         for node in ET.fromstring(svg).iter():
-            if 'measure' in node.get('class', '').split():
+            if notation != 'tab' and 'measure' in node.get('class', '').split():
                 index = len(measures)
                 measures.append(dict(number=index+1, start=round(offset + index*beats*60/bpm, 5),
                                      id=node.get('id'), page=page))
-        drawing = svg2rlg(str(path))
-        if drawing is None:
-            raise RuntimeError('Não foi possível gerar o PDF.')
-        scale = min((A4[0]-40)/drawing.width, (A4[1]-40)/drawing.height)
-        drawing.scale(scale, scale)
-        renderPDF.draw(drawing, pdf, 20, A4[1]-20-drawing.height*scale)
+        image = ImageReader(io.BytesIO(render_score_png(svg)))
+        width, height = image.getSize()
+        scale = min((A4[0]-40)/width, (A4[1]-40)/height)
+        pdf.drawImage(image, 20, A4[1]-20-height*scale, width=width*scale, height=height*scale)
         pdf.showPage()
     pdf.save()
-    return dict(pages=toolkit.getPageCount(), measures=measures, notes=len(events),
+    return dict(pages=len(rendered), measures=measures, notes=len(events), notation=notation,
                 bpm=bpm, beats=beats, offset=offset, duration=duration, stem=stem)
 
 
 def generate(source: Path, directory: Path, *, stem: str, bpm: float, beats: int,
-             offset: float, progress=lambda percent, message: None):
+             offset: float, notation: str = "standard", progress=lambda percent, message: None):
     import librosa
     import soundfile as sf
     info = sf.info(str(source))
@@ -176,7 +207,7 @@ def generate(source: Path, directory: Path, *, stem: str, bpm: float, beats: int
         raise ValueError('Não foram detectadas notas ou eventos suficientes nesta faixa.')
     progress(75, 'Escrevendo e desenhando a partitura…')
     result = write_score(events, directory, stem=stem, bpm=bpm, beats=beats,
-                         offset=offset, duration=info.duration)
+                         offset=offset, duration=info.duration, notation=notation)
     (directory/'result.json').write_text(json.dumps(result))
     progress(100, 'Partitura pronta — revise a transcrição.')
     return result

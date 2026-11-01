@@ -1,3 +1,5 @@
+> **Extensão Partituras:** este repositório adiciona partitura tradicional e tablatura de baixo, além de notação experimental de bateria. [Instalação e uso](PARTITURAS.md). Base: StemDeck v0.20.0.
+
 <div align="center">
 
 <img src="imgs/stemdeck-svg-assets/stemdeck-logo-stacked.svg" alt="StemDeck" width="515" />
