@@ -30,6 +30,17 @@ try {
   await page.waitForFunction(()=>document.querySelector('.sd-score-pages svg')?.textContent.includes('Tablatura (TAB)'));
   assert((await page.locator('.sd-score-pages').textContent()).includes('Números = trastes'));
   await page.screenshot({path:'/tmp/stemdeck-score-tab-ui.png'});
+  await page.getByRole('button',{name:'Tela cheia',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelector('.sd-score-panel').getBoundingClientRect().width>=window.innerWidth-2);
+  await page.screenshot({path:'/tmp/stemdeck-fullscreen-ui.png'});
+  await page.getByRole('button',{name:'Reproduzir',exact:true}).click();
+  await page.getByRole('button',{name:'Pausar',exact:true}).waitFor();
+  await page.getByRole('button',{name:'Pausar',exact:true}).click();
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(()=>!document.querySelector('.sd-score-panel').classList.contains('sd-score-fullscreen'));
+  assert.equal(await page.locator('.sd-score-panel').count(),1);
+  assert.equal(await page.locator('.sd-score-panel nav a').count(),3);
+  console.log('PASS: full-screen score, playback controls, Escape restores inspector without losing score');
   // Desktop exports must use the native save bridge, not a WebView navigation.
   await page.evaluate(() => {
     window.scoreSaveCalls=[];
@@ -101,7 +112,7 @@ try {
   for(const zoom of [12,32,96]){
     await page.evaluate(async zoom=>{const t=await import('/js/transport.js');t.setWaveZoomLevel(zoom);t.setPlayheadTime(1.5);document.getElementById('wave-scroll').scrollLeft=300;},zoom);
     await page.waitForTimeout(100);
-    const offset=await page.evaluate(()=>{const r=document.querySelector('#ruler-time .playhead-marker').getBoundingClientRect();return Math.abs(r.left+r.width/2-document.querySelector('.sd-timeline-cursor').getBoundingClientRect().left);});
+    const geometry=await page.evaluate(()=>{const r=document.querySelector('#ruler-time .playhead-marker').getBoundingClientRect();const y=document.querySelector('.sd-timeline-cursor');return {offset:Math.abs(r.left+r.width/2-y.getBoundingClientRect().left),red:r.left+r.width/2,yellow:y.getBoundingClientRect().left,ruler:document.querySelector('#ruler-time').getBoundingClientRect().left,column:document.querySelector('.waves-column').getBoundingClientRect().left,scroll:document.querySelector('#wave-scroll').scrollLeft,percent:y.getAttribute('x1'),box:y.ownerSVGElement.getAttribute('viewBox')};});console.log('zoom geometry',zoom,geometry);const offset=geometry.offset;
     assert(offset<2,`Cursor alignment at ${zoom}x: ${offset}px`);
   }
   console.log('PASS: shared playhead alignment at 12x, 32x and 96x with horizontal scroll');

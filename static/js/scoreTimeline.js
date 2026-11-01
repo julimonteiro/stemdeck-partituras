@@ -4,6 +4,7 @@ import { currentJobId, audioEngine, multitrack, totalDuration, waveScroll, waveZ
 const active = new Map();
 let timer;
 let priorZoom=1;
+let syncNativeRuler=null;
 const NS = 'http://www.w3.org/2000/svg';
 function node(tag, attributes, parent, text) {
   const n = document.createElementNS(NS, tag);
@@ -25,7 +26,8 @@ export async function showTimeline(jobId, stem, result) {
   active.set(stem,{jobId,stem,result,mode:result.notation,overlay:null,width:0,height:0,groups:[]});
   if (!timer) timer=setInterval(update,40);
   document.dispatchEvent(new Event('sd-score-timeline-changed'));
-  const {setWaveZoomLevel,setNotationZoomLimit}=await import('./transport.js');
+  const {setWaveZoomLevel,setNotationZoomLimit,syncRulerScroll}=await import('./transport.js');
+  syncNativeRuler=syncRulerScroll;
   if (jobId===currentJobId&&active.has(stem)){
     setNotationZoomLimit(true);
     const readable=readableNotationZoom(result.timeline,totalDuration,waveScroll?.clientWidth||750);
@@ -97,11 +99,14 @@ function draw(entry, width, height) {
     group.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' ')seek(e);});
     entry.groups.push({element:group,event});
   });
-  const initial=`${((audioEngine||multitrack)?.getCurrentTime?.()||0)/duration*100}%`;
+  const initial=document.querySelector('#ruler-time .playhead-marker')?.style.left || `${((audioEngine||multitrack)?.getCurrentTime?.()||0)/duration*100}%`;
   entry.cursor=node('line',{x1:initial,y1:0,x2:initial,y2:height,stroke:'#e54e4e','stroke-width':2,'class':'sd-timeline-cursor'},svg);
 }
 
 function update() {
+  // The ruler lives outside the scrolling lanes. Keep it in step even when
+  // a browser coalesces scroll events during an expensive notation zoom.
+  syncNativeRuler?.();
   const engine=audioEngine||multitrack;
   const time=engine?.getCurrentTime?.()||0;
   for(const [stem,entry] of active) {

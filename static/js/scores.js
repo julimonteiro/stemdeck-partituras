@@ -78,6 +78,11 @@ function openScore(jobId, stem, trigger, requestedNotation=null, autoTimeline=fa
   const header = element('header', null, panel);
   const heading = element('h2', `Partitura · ${stem === 'bass' ? 'Baixo' : 'Bateria'}`, header);
   heading.tabIndex = -1;
+  const expand=element('button','Tela cheia',header);expand.type='button';expand.className='sd-score-expand';expand.setAttribute('aria-pressed','false');
+  const playback=element('button','Reproduzir',header);playback.type='button';playback.hidden=true;playback.className='sd-score-playback';
+  function setFullscreen(enabled){panel.classList.toggle('sd-score-fullscreen',enabled);expand.textContent=enabled?'Sair da tela cheia':'Tela cheia';expand.setAttribute('aria-pressed',String(enabled));playback.hidden=!enabled;}
+  expand.addEventListener('click',()=>setFullscreen(!panel.classList.contains('sd-score-fullscreen')));
+  playback.addEventListener('click',async()=>{const {togglePlayPause}=await import('./transport.js');if(jobId===currentJobId)togglePlayPause();});
   const close = element('button', 'Fechar ×', header);
   close.className='sd-score-close';
   close.type = 'button';
@@ -146,7 +151,7 @@ function openScore(jobId, stem, trigger, requestedNotation=null, autoTimeline=fa
   }
   activePanel = destroy;
   close.addEventListener('click', destroy);
-  panel.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Escape') { e.stopPropagation(); destroy(); } });
+  panel.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Escape') { e.stopPropagation(); if(panel.classList.contains('sd-score-fullscreen'))setFullscreen(false);else destroy(); } });
   heading.focus();
   async function request(url, options = {}) {
     const response = await fetch(url, { ...options, signal: aborter.signal });
@@ -156,6 +161,7 @@ function openScore(jobId, stem, trigger, requestedNotation=null, autoTimeline=fa
   }
   function highlight() {
     if (jobId !== currentJobId) { destroy(); return; }
+    playback.textContent=(audioEngine||multitrack)?.isPlaying?.()?'Pausar':'Reproduzir';
     if (!result) return;
     const time = (audioEngine || multitrack)?.getCurrentTime?.() || 0;
     const measure = result.measures.findLast(m => m.start <= time);
@@ -166,10 +172,14 @@ function openScore(jobId, stem, trigger, requestedNotation=null, autoTimeline=fa
     if (highlighted === measure?.id) return;
     highlighted = measure?.id;
     pages.querySelectorAll('.sd-current').forEach(node => node.classList.remove('sd-current'));
-    if (highlighted) pages.querySelector(`#${CSS.escape(highlighted)}`)?.classList.add('sd-current');
+    if (highlighted){
+      const current=pages.querySelector(`#${CSS.escape(highlighted)}`);current?.classList.add('sd-current');
+      if(panel.classList.contains('sd-score-fullscreen')&&(audioEngine||multitrack)?.isPlaying?.())current?.scrollIntoView({block:'nearest',inline:'nearest',behavior:'smooth'});
+    }
   }
   function showResult(value, base) {
     result = value;
+    panel.classList.add('sd-score-ready');
     timelineButton.hidden=false;
     rememberScore(jobId,stem,value);
     exports.replaceChildren(); pages.replaceChildren(); navigation.replaceChildren();
@@ -261,7 +271,7 @@ function openScore(jobId, stem, trigger, requestedNotation=null, autoTimeline=fa
     if (!form.reportValidity()) return;
     clearTimeout(timer); aborter?.abort(); aborter = new AbortController();
     const sequence = ++requestNumber;
-    result = null; timelineButton.hidden=true; exports.replaceChildren(); pages.replaceChildren(); navigation.replaceChildren(); position.textContent = '';
+    result = null; panel.classList.remove('sd-score-ready'); timelineButton.hidden=true; exports.replaceChildren(); pages.replaceChildren(); navigation.replaceChildren(); position.textContent = '';
     generate.disabled = true; progress.hidden = false; progress.value = 0;
     status.textContent = 'Enviando para transcrição…';
     const base = `/api/jobs/${encodeURIComponent(jobId)}/scores/${stem}`;

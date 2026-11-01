@@ -62,3 +62,8 @@ O metrônomo existente pode ser ligado/desligado com K, ou no botão de metrôno
 
 
 O cursor da notação compartilha a atualização e a posição percentual do cursor do áudio. A escala SVG preserva o alinhamento horizontal em qualquer ampliação; não existe compensação manual entre os cursores. Regressão verificada com rolagem horizontal em 12×, 32× e 96×.
+
+
+## Tela cheia
+
+No painel Partitura, o botão Tela cheia expande a visualização para toda a janela do aplicativo. Pauta e TAB mantêm o destaque do compasso durante a reprodução, com botões Reproduzir/Pausar no cabeçalho. Esc ou Sair da tela cheia retorna ao inspetor sem perder a transcrição.
