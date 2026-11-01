@@ -1,5 +1,5 @@
 import { showTimeline, clearTimeline, timelineMode } from './scoreTimeline.js';
-import { currentJobId, bpmChip, audioEngine, multitrack } from './state.js';
+import { currentJobId, bpmChip, audioEngine, multitrack, waveZoom } from './state.js';
 
 let activePanel = null;
 const recentScores = new Map();
@@ -47,11 +47,13 @@ export function makeScoreButton(stem) {
   });
   const segments=document.createElement('div');segments.className='sd-view-segments';segments.setAttribute('role','group');segments.setAttribute('aria-label','Visão da faixa');
   for(const option of view.options){const item=document.createElement('button');item.type='button';item.textContent=option.value==='standard'?'Pauta':option.textContent;item.dataset.mode=option.value;item.setAttribute('aria-pressed',String(view.value===option.value));item.addEventListener('click',()=>{view.value=option.value;view.dispatchEvent(new Event('change'));});segments.append(item);}
-  const refreshSegments=()=>{for(const item of segments.children)item.setAttribute('aria-pressed',String(item.dataset.mode===view.value));};
+  const zoom=document.createElement('div');zoom.className='sd-note-zoom';zoom.setAttribute('role','group');zoom.setAttribute('aria-label','Espaçamento da notação');
+  for(const [label,factor,title]of [['−',1/1.35,'Aproximar notas'],['+',1.35,'Afastar notas']]){const control=document.createElement('button');control.type='button';control.textContent=label;control.title=title;control.setAttribute('aria-label',title);control.addEventListener('click',async()=>{const {setWaveZoomLevel}=await import('./transport.js');setWaveZoomLevel(waveZoom*factor);});zoom.append(control);}
+  const refreshSegments=()=>{for(const item of segments.children)item.setAttribute('aria-pressed',String(item.dataset.mode===view.value));zoom.hidden=view.value==='audio';};
   view.addEventListener('change',refreshSegments);
   const refresh=()=>{if(!view.isConnected){document.removeEventListener('sd-score-timeline-changed',refresh);return;}view.value=timelineMode(stem);refreshSegments();};
   document.addEventListener('sd-score-timeline-changed',refresh);
-  wrap.append(view,segments);
+  wrap.append(view,zoom,segments);refreshSegments();
   return wrap;
 }
 

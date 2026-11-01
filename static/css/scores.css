@@ -17,3 +17,5 @@
 @media(max-width:680px){.sd-score-panel{top:76px;bottom:70px;width:min(430px,100vw);padding:18px}.sd-view-segments button{padding-inline:5px}}
 
 .lane-header:has(.sd-score-tools) .lane-name-vu{margin-top:0;transform:translateY(-9px)}
+
+.sd-note-zoom{display:flex;gap:1px;margin-left:auto;border:1px solid var(--border,#28323b);border-radius:4px;background:#0c1217}.sd-note-zoom[hidden]{display:none}.sd-note-zoom button{border:0;background:transparent;color:#a8bac7;width:21px;height:17px;padding:0;font:13px/16px system-ui;cursor:pointer}.sd-note-zoom button:hover{color:#f3ba39;background:#efb52b15}.sd-score-pages{overflow-x:auto;scrollbar-color:#384550 transparent}.sd-score-pages>div>svg{min-width:680px}

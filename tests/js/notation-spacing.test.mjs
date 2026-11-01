@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import { readableNotationZoom } from '../../static/js/notationSpacing.js';
+const events=Array.from({length:100},(_,i)=>({start:i*.125}));
+const zoom=readableNotationZoom(events,180,750);
+assert(zoom>10,'Long scores must be able to exceed waveform zoom limit');
+assert(.125*750*zoom/180>=39.9,'Fast adjacent notes need at least 40px');
+assert.equal(readableNotationZoom([{start:0},{start:0},{start:.125}],180,750),zoom,'Chords must not create zero-distance zoom');
+assert(Number.isFinite(readableNotationZoom([],180,750)));
+assert.equal(readableNotationZoom(events,0,0),1);
+console.log('PASS: readable notation spacing, long tracks, simultaneous notes and empty inputs');

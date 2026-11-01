@@ -52,3 +52,10 @@ O seletor **Cordas do baixo** permite 4 ou 5 cordas; nesta versão a interface c
 ## Interface integrada ao estúdio
 
 Controles de visualização agrupados no rodapé das faixas, timeline escura com destaque âmbar e indicação das cordas. A configuração abre em um inspetor lateral alinhado ao estúdio, com ajustes avançados recolhidos. O inspetor respeita a altura dos controles de reprodução. Validado também em janela 1280×720, sem sobrepor o medidor da faixa.
+
+
+## Espaçamento para leitura
+
+A timeline calcula o zoom a partir dos ataques das notas, buscando cerca de 40 pixels entre ataques consecutivos. No modo de notação, a ampliação pode ultrapassar o limite de 10× das ondas (até 256×). Os botões − / + ao lado da visualização permitem aproximar ou afastar as notas. Ao sair da notação, o zoom anterior é restaurado. A página no inspetor também fica ampliada e permite rolagem horizontal.
+
+O metrônomo existente pode ser ligado/desligado com K, ou no botão de metrônomo da seção Click track na barra inferior; o alto-falante ao lado ajusta o volume.

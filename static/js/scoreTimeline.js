@@ -1,7 +1,9 @@
-import { currentJobId, audioEngine, multitrack, totalDuration, waveScroll } from './state.js';
+import { readableNotationZoom } from './notationSpacing.js';
+import { currentJobId, audioEngine, multitrack, totalDuration, waveScroll, waveZoom } from './state.js';
 
 const active = new Map();
 let timer;
+let priorZoom=1;
 const NS = 'http://www.w3.org/2000/svg';
 function node(tag, attributes, parent, text) {
   const n = document.createElementNS(NS, tag);
@@ -13,17 +15,22 @@ function node(tag, attributes, parent, text) {
 export function timelineMode(stem) { return active.get(stem)?.mode || 'audio'; }
 export function clearTimeline(stem) {
   active.get(stem)?.overlay?.remove(); active.delete(stem);
-  if (!active.size) {clearInterval(timer); timer=null;}
+  if (!active.size) {clearInterval(timer); timer=null;import('./transport.js').then(({setNotationZoomLimit,setWaveZoomLevel})=>{if(!active.size){setNotationZoomLimit(false);setWaveZoomLevel(priorZoom);}});}
   document.dispatchEvent(new Event('sd-score-timeline-changed'));
 }
 export async function showTimeline(jobId, stem, result) {
   if (jobId !== currentJobId || !result.timeline) return;
+  if(!active.size)priorZoom=waveZoom;
   clearTimeline(stem);
   active.set(stem,{jobId,stem,result,mode:result.notation,overlay:null,width:0,height:0,groups:[]});
   if (!timer) timer=setInterval(update,40);
   document.dispatchEvent(new Event('sd-score-timeline-changed'));
-  const {setWaveZoomLevel}=await import('./transport.js');
-  if (jobId===currentJobId) setWaveZoomLevel(Math.max(1,totalDuration/12));
+  const {setWaveZoomLevel,setNotationZoomLimit}=await import('./transport.js');
+  if (jobId===currentJobId&&active.has(stem)){
+    setNotationZoomLimit(true);
+    const readable=readableNotationZoom(result.timeline,totalDuration,waveScroll?.clientWidth||750);
+    setWaveZoomLevel(Math.max(waveZoom,readable));
+  }
   update();
 }
 
@@ -37,7 +44,7 @@ function draw(entry, width, height) {
   if (mode==='tab') {
     const labels=['G','D','A','E',...(result.strings===5?['B']:[])];
     const top=15, gap=Math.min(13,(height-25)/(labels.length-1));
-    labels.forEach((label,index)=>{const y=top+index*gap;line(0,y,width,y);node('text',{x:5,y:y+3,'font-size':9,'font-family':'system-ui',fill:'#728794'},svg,label);});
+    labels.forEach((label,index)=>{const y=top+index*gap;line(0,y,width,y);node('text',{x:width-7,y:y+3,'text-anchor':'end','font-size':9,'font-family':'system-ui',fill:'#728794'},svg,label);});
     yForPitch=e=>top+((e.string||1)-1)*gap;
   } else {
     const steps=[0,0,1,1,2,3,3,4,4,5,5,6];
@@ -61,7 +68,7 @@ function draw(entry, width, height) {
   }
   entry.groups=[];
   result.timeline.forEach((event,index)=>{
-    const x=Math.max(24,Math.min(width-10,px(event.start))),y=yForPitch(event);
+    const x=Math.max(6,Math.min(width-10,px(event.start))),y=yForPitch(event);
     const group=node('g',{'class':'sd-timeline-note','data-start':event.start,'data-end':event.end,
       tabindex:0,role:'button','aria-label':`${entry.stem==='bass'?'Nota':'Batida'} ${index+1}, ${event.start.toFixed(2)} segundos`},svg);
     if (mode==='tab') {

@@ -82,5 +82,18 @@ try {
   assert(spacing.meter<=spacing.tools,'Notation controls must not overlap the level meter');
   await page.screenshot({path:'/tmp/stemdeck-native-compact.png'});
   assert.deepEqual(errors,[]);
+  await page.evaluate(async()=>{
+    const state=await import('/js/state.js');state.setTotalDuration(180);
+    const {showTimeline}=await import('/js/scoreTimeline.js');
+    await showTimeline('e2e0deadbeef','bass',{duration:180,notation:'standard',stem:'bass',strings:5,bpm:120,beats:4,measures:[],timeline:Array.from({length:16},(_,i)=>({start:.5+i*.125,end:.625+i*.125,pitch:40,beats:.25}))});
+  });
+  await page.waitForFunction(()=>document.querySelector('.waves-column').clientWidth>10000);
+  const gap=await page.locator('.sd-timeline-note ellipse').evaluateAll(notes=>Number(notes[1].getAttribute('cx'))-Number(notes[0].getAttribute('cx')));
+  assert(gap>=39.5,'Dense long scores need readable spacing beyond waveform zoom limit');
+  const width=await page.locator('.waves-column').evaluate(e=>e.clientWidth);
+  await page.locator('.lane-header[data-stem="bass"]').getByRole('button',{name:'Afastar notas',exact:true}).click();
+  await page.waitForFunction(width=>document.querySelector('.waves-column').clientWidth>width,width);
+  await page.evaluate(async()=>{const state=await import('/js/state.js');state.setTotalDuration(6);const {clearTimeline}=await import('/js/scoreTimeline.js');clearTimeline('bass');});
+  console.log('PASS: dense 3-minute score spacing, zoom beyond 10x, manual spacing control');
   console.log('PASS: mixer button, real transcription, SVG, 3 exports, measure seek, desktop save bridge, Space close, no JS errors');
 } finally {await browser.close();}

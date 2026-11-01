@@ -50,6 +50,8 @@ import { refitFooter } from "./footerFit.js";
 // way: it scans the decoded buffer itself, at whatever this ceiling asks for.
 const WAVE_ZOOM_MIN = 1;
 export const WAVE_ZOOM_MAX = 10;
+let currentZoomLimit = WAVE_ZOOM_MAX;
+export function setNotationZoomLimit(enabled) { currentZoomLimit = enabled ? 256 : WAVE_ZOOM_MAX; }
 // One wheel notch. Multiplicative, so a notch covers the same proportion of the
 // range at 1x as at 4x; linear steps feel fast at the bottom and stuck at the top.
 const WAVE_ZOOM_STEP = 1.18;
@@ -816,7 +818,7 @@ export function applyWaveZoom() {
  * zooming toward a specific bar becomes a game of chase-the-scrollbar.
  */
 export function setWaveZoomLevel(next, anchorClientX = null) {
-  const clamped = Math.min(WAVE_ZOOM_MAX, Math.max(WAVE_ZOOM_MIN, next));
+  const clamped = Math.min(currentZoomLimit, Math.max(WAVE_ZOOM_MIN, next));
   if (Math.abs(clamped - waveZoom) < 1e-4) return false;
   // Which content pixel the anchor is on, before anything moves.
   const rect = waveScroll?.getBoundingClientRect();

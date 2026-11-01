@@ -17,7 +17,7 @@ python = workspace/'runtime/python/bin/python'
 if not (backend/'app/api/router.py').is_file() or not python.is_file():
     raise SystemExit('Open official StemDeck once and complete setup before installing this extension.')
 files = ['app/api/router.py', 'app/api/scores.py', 'app/pipeline/sheet_music.py', 'app/pipeline/sheet_music_render.py',
-         'static/js/mixer.js', 'static/js/scores.js', 'static/js/scoreTimeline.js', 'static/css/scores.css']
+         'static/js/mixer.js', 'static/js/scores.js', 'static/js/scoreTimeline.js', 'static/js/notationSpacing.js', 'static/js/transport.js', 'static/css/scores.css']
 backup = workspace/'extension-backups'/datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')
 backup.mkdir(parents=True)
 manifest = []
